@@ -1,65 +1,130 @@
-import Image from "next/image";
+import { db } from "@/db"
+import { companies, jobs, followUps } from "@/db/schema"
+import { desc, eq, sql, and, lt } from "drizzle-orm"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Building2, Send, Reply, Ghost, Users } from "lucide-react"
 
-export default function Home() {
+async function getStats() {
+  const allJobs = await db.select().from(jobs)
+  const total = allJobs.length
+  const applied = allJobs.filter((j) => j.status !== "To Apply").length
+  const replied = allJobs.filter((j) => j.status === "Replied" || j.status === "Interview").length
+  const ghosted = allJobs.filter((j) => j.status === "Ghosted").length
+  return { total, applied, replied, ghosted }
+}
+
+async function getFollowUpRadar() {
+  const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+  const stalled = await db
+    .select()
+    .from(jobs)
+    .where(
+      and(
+        sql`${jobs.status} NOT IN ('Ghosted', 'Rejected', 'Offer')`,
+        sql`${jobs.status} != 'To Apply'`,
+        lt(jobs.updatedAt, fourDaysAgo)
+      )
+    )
+    .orderBy(desc(jobs.updatedAt))
+
+  const withCompany = await Promise.all(
+    stalled.map(async (j) => {
+      const company = await db
+        .select({ name: companies.name })
+        .from(companies)
+        .where(eq(companies.id, j.companyId))
+        .then((r) => r[0])
+      return { ...j, companyName: company?.name ?? "Unknown" }
+    })
+  )
+  return withCompany
+}
+
+const statusColors: Record<string, string> = {
+  "To Apply": "bg-muted text-muted-foreground",
+  Applied: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  "Followed Up": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  Replied: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  Interview: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+  Ghosted: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  Rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  Offer: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+}
+
+export default async function Dashboard() {
+  const stats = await getStats()
+  const radar = await getFollowUpRadar()
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">Your outreach pipeline at a glance</p>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
+            <Send className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Sent Out</CardTitle>
+            <Building2 className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.applied}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Replies / Interviews</CardTitle>
+            <Reply className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.replied}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Ghosted</CardTitle>
+            <Ghost className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.ghosted}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Follow-up Radar</CardTitle>
+          <p className="text-sm text-muted-foreground">Applications with no update in 4+ days</p>
+        </CardHeader>
+        <CardContent>
+          {radar.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Nothing needs follow-up right now.</p>
+          ) : (
+            <div className="space-y-3">
+              {radar.map((j) => (
+                <div key={j.id} className="flex items-center justify-between border-b pb-2 last:border-0">
+                  <div>
+                    <p className="font-medium text-sm">{j.companyName}</p>
+                    <p className="text-xs text-muted-foreground">{j.role}</p>
+                  </div>
+                  <Badge className={statusColors[j.status]}>{j.status}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
-  );
+  )
 }
