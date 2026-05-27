@@ -1,15 +1,16 @@
 import { db } from "@/db"
-import { companies, jobs, followUps } from "@/db/schema"
+import { companies, jobs } from "@/db/schema"
 import { desc, eq, sql, and, lt } from "drizzle-orm"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Building2, Send, Reply, Ghost, Users } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import Link from "next/link"
+import { Send, MessageCircle, Ghost, TrendingUp } from "lucide-react"
+import { StatusSelect } from "@/components/status-select"
 
 async function getStats() {
   const allJobs = await db.select().from(jobs)
   const total = allJobs.length
   const applied = allJobs.filter((j) => j.status !== "To Apply").length
-  const replied = allJobs.filter((j) => j.status === "Replied" || j.status === "Interview").length
+  const replied = allJobs.filter((j) => j.status === "Replied" || j.status === "Interview" || j.status === "Offer").length
   const ghosted = allJobs.filter((j) => j.status === "Ghosted").length
   return { total, applied, replied, ghosted }
 }
@@ -28,6 +29,8 @@ async function getFollowUpRadar() {
     )
     .orderBy(desc(jobs.updatedAt))
 
+  if (stalled.length === 0) return []
+
   const withCompany = await Promise.all(
     stalled.map(async (j) => {
       const company = await db
@@ -41,90 +44,80 @@ async function getFollowUpRadar() {
   return withCompany
 }
 
-const statusColors: Record<string, string> = {
-  "To Apply": "bg-muted text-muted-foreground",
-  Applied: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  "Followed Up": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  Replied: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Interview: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  Ghosted: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  Rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  Offer: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-}
-
 export default async function Dashboard() {
   const stats = await getStats()
   const radar = await getFollowUpRadar()
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Your outreach pipeline at a glance</p>
+        <p className="text-sm text-muted-foreground mt-1">Your outreach pipeline</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
-            <Send className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Sent Out</CardTitle>
-            <Building2 className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.applied}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Replies / Interviews</CardTitle>
-            <Reply className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.replied}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Ghosted</CardTitle>
-            <Ghost className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.ghosted}</div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <div className="size-8 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+            <Send className="size-4 text-blue-700 dark:text-blue-300" />
+          </div>
+          <div>
+            <p className="text-xl font-bold leading-none">{stats.total}</p>
+            <p className="text-xs text-muted-foreground">Total</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="size-8 rounded-lg bg-green-100 dark:bg-green-900 flex items-center justify-center">
+            <TrendingUp className="size-4 text-green-700 dark:text-green-300" />
+          </div>
+          <div>
+            <p className="text-xl font-bold leading-none">{stats.applied}</p>
+            <p className="text-xs text-muted-foreground">Sent</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="size-8 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+            <MessageCircle className="size-4 text-purple-700 dark:text-purple-300" />
+          </div>
+          <div>
+            <p className="text-xl font-bold leading-none">{stats.replied}</p>
+            <p className="text-xs text-muted-foreground">Replied</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="size-8 rounded-lg bg-red-100 dark:bg-red-900 flex items-center justify-center">
+            <Ghost className="size-4 text-red-700 dark:text-red-300" />
+          </div>
+          <div>
+            <p className="text-xl font-bold leading-none">{stats.ghosted}</p>
+            <p className="text-xs text-muted-foreground">Ghosted</p>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Follow-up Radar</CardTitle>
-          <p className="text-sm text-muted-foreground">Applications with no update in 4+ days</p>
-        </CardHeader>
-        <CardContent>
-          {radar.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Nothing needs follow-up right now.</p>
-          ) : (
-            <div className="space-y-3">
-              {radar.map((j) => (
-                <div key={j.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                  <div>
-                    <p className="font-medium text-sm">{j.companyName}</p>
+      <div>
+        <h2 className="font-semibold mb-3">Needs Follow-up</h2>
+        {radar.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">
+              Nothing needs follow-up right now.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {radar.map((j) => (
+              <Card key={j.id}>
+                <CardContent className="flex items-center justify-between py-3">
+                  <Link href={`/companies/${j.companyId}/apply?jobId=${j.id}`} className="flex-1 min-w-0">
+                    <p className="font-medium text-sm hover:underline">{j.companyName}</p>
                     <p className="text-xs text-muted-foreground">{j.role}</p>
-                  </div>
-                  <Badge className={statusColors[j.status]}>{j.status}</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </Link>
+                  <StatusSelect jobId={j.id} current={j.status} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

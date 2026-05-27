@@ -1,36 +1,21 @@
 import { db } from "@/db"
 import { jobs, companies } from "@/db/schema"
 import { desc, eq } from "drizzle-orm"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
-import { updateJobStatus } from "@/lib/actions"
 import Link from "next/link"
+import { StatusSelect } from "@/components/status-select"
+import { Send } from "lucide-react"
 
-const statusColors: Record<string, string> = {
-  "To Apply": "bg-muted text-muted-foreground",
-  Applied: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  "Followed Up": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  Replied: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Interview: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  Ghosted: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  Rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  Offer: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
-}
-
-const STATUS_FLOW = ["To Apply", "Applied", "Followed Up", "Replied", "Interview", "Offer", "Ghosted", "Rejected"]
-
-export default async function Tracker() {
+export default async function Pipeline() {
   const allJobs = await db
     .select({
       id: jobs.id,
       role: jobs.role,
       status: jobs.status,
+      location: jobs.location,
       appliedDate: jobs.appliedDate,
       lastFollowUp: jobs.lastFollowUp,
       companyId: jobs.companyId,
@@ -41,54 +26,70 @@ export default async function Tracker() {
     .leftJoin(companies, eq(jobs.companyId, companies.id))
     .orderBy(desc(jobs.createdAt))
 
-  const statusGroups = STATUS_FLOW.map((status) => ({
-    status,
-    items: allJobs.filter((j) => j.status === status),
-  }))
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Tracker</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {allJobs.length} total application{allJobs.length !== 1 ? "s" : ""}
-        </p>
+        <h1 className="text-2xl font-bold">Pipeline</h1>
+        <p className="text-sm text-muted-foreground mt-1">{allJobs.length} application{allJobs.length !== 1 ? "s" : ""}</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        {statusGroups.map(({ status, items }) => (
-          <Card key={status}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center justify-between">
-                {status}
-                <Badge variant="secondary" className="ml-2">{items.length}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 max-h-[60vh] overflow-y-auto">
-              {items.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">Empty</p>
-              ) : (
-                items.map((j) => (
-                  <div key={j.id} className="border rounded-md p-2 text-xs space-y-1">
-                    <p className="font-medium truncate">{j.companyName}</p>
-                    <p className="text-muted-foreground truncate">{j.role}</p>
-                    <div className="flex items-center gap-1 pt-1">
-                      {status !== j.status && (
-                        <form action={async () => {
-                          "use server"
-                          await updateJobStatus(j.id, status)
-                        }}>
-                          <button className="text-[10px] text-blue-600 hover:underline">Move here</button>
-                        </form>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {allJobs.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No applications yet. Add a company and job to get started.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5 w-[200px]">Company</th>
+                <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5">Role</th>
+                <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5 w-[140px]">Status</th>
+                <th className="text-left text-xs font-medium text-muted-foreground px-4 py-2.5 w-[100px]">Applied</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-4 py-2.5 w-[120px]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allJobs.map((j) => (
+                <tr key={j.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <Link href={`/companies/${j.companyId}`} className="text-sm font-medium hover:underline">
+                      {j.companyName}
+                    </Link>
+                    {j.location && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{j.location}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm">{j.role}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusSelect jobId={j.id} current={j.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-sm text-muted-foreground">
+                      {j.appliedDate
+                        ? j.appliedDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+                        : "—"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/companies/${j.companyId}/apply?jobId=${j.id}`}
+                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                    >
+                      <Send className="size-3" />
+                      {j.status === "To Apply" ? "Apply" : "Re-engage"}
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

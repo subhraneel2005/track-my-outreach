@@ -7,7 +7,6 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -24,7 +23,7 @@ import {
 const navItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Companies", href: "/companies", icon: Building2 },
-  { label: "Tracker", href: "/tracker", icon: ListChecks },
+  { label: "Pipeline", href: "/tracker", icon: ListChecks },
   { label: "Templates", href: "/templates", icon: FileText },
   { label: "Discover", href: "/discover", icon: Compass },
 ]
@@ -35,16 +34,15 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-4 py-2">
-          <div className="size-6 rounded bg-transparent flex items-center justify-center">
-            <span className="text-xl font-bold text-primary-foreground">🧑‍💻</span>
+        <div className="flex items-center gap-2 px-4 py-3">
+          <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
+            <span className="text-xs font-bold text-primary-foreground">TO</span>
           </div>
           <span className="font-semibold text-sm">track-my-outreach</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
