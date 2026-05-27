@@ -32,13 +32,13 @@ export function AppSidebar() {
   const pathname = usePathname()
 
   return (
-    <Sidebar>
+    <Sidebar className="sidebar-glass">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-4 py-3">
-          <div className="size-7 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-xs font-bold text-primary-foreground">TO</span>
+          <div className="size-7 rounded-lg bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center">
+            <span className="text-xs font-bold text-white">TO</span>
           </div>
-          <span className="font-semibold text-sm">track-my-outreach</span>
+          <span className="font-semibold text-sm gradient-text">track-my-outreach</span>
         </div>
       </SidebarHeader>
       <SidebarContent>

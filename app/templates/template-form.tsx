@@ -33,7 +33,7 @@ export function TemplateForm() {
         <Plus className="size-4 mr-1" />
         Add Template
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-[800px]">
         <DialogHeader>
           <DialogTitle>New Template</DialogTitle>
         </DialogHeader>
@@ -43,25 +43,26 @@ export function TemplateForm() {
             setOpen(false)
             router.refresh()
           }}
-          className="space-y-4"
+          className="space-y-5"
         >
-          <div className="space-y-2">
-            <Label htmlFor="name">Template Name</Label>
-            <Input id="name" name="name" required placeholder="e.g. Cold Email - Referral" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="channel">Channel</Label>
-            <Select name="channel" defaultValue="email">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                <SelectItem value="x">X / Twitter</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <Label htmlFor="name">Template Name</Label>
+              <Input id="name" name="name" required placeholder="e.g. Cold Email - Referral" className="h-10" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="channel">Channel</Label>
+              <Select name="channel" defaultValue="email">
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="linkedin">LinkedIn</SelectItem>
+                  <SelectItem value="x">X / Twitter</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -75,15 +76,15 @@ export function TemplateForm() {
               id="body"
               name="body"
               required
-              rows={15}
-              className="font-mono text-xs"
+              rows={28}
+              className="font-mono text-sm leading-relaxed"
               placeholder="Hi {name},&#10;&#10;Hope you're doing well..."
             />
           </div>
 
-          <div className="flex gap-3">
-            <Button type="submit">Save Template</Button>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" size="lg">Save Template</Button>
+            <Button type="button" variant="outline" size="lg" onClick={() => setOpen(false)}>
               Cancel
             </Button>
           </div>

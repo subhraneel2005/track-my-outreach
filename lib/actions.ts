@@ -6,6 +6,35 @@ import { eq, asc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { generateId } from "./constants"
 
+export async function quickAddCompany(formData: FormData) {
+  const now = new Date()
+  const name = formData.get("name") as string
+  const role = formData.get("role") as string
+  if (!name) return
+
+  const companyId = generateId()
+  await db.insert(companies).values({
+    id: companyId,
+    name,
+    source: (formData.get("source") as string) || null,
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  if (role) {
+    await db.insert(jobs).values({
+      id: generateId(),
+      companyId,
+      role,
+      status: "To Apply",
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
+  revalidatePath("/")
+}
+
 export async function addCompany(formData: FormData) {
   const now = new Date()
   const id = generateId()
@@ -19,7 +48,6 @@ export async function addCompany(formData: FormData) {
     createdAt: now,
     updatedAt: now,
   })
-  revalidatePath("/companies")
   revalidatePath("/")
 }
 
@@ -38,7 +66,6 @@ export async function addJob(companyId: string, formData: FormData) {
     createdAt: now,
     updatedAt: now,
   })
-  revalidatePath(`/companies/${companyId}`)
   revalidatePath("/")
 }
 
@@ -50,8 +77,6 @@ export async function updateJobStatus(jobId: string, status: string) {
     await db.update(jobs).set({ status, updatedAt: now }).where(eq(jobs.id, jobId))
   }
   revalidatePath("/")
-  revalidatePath("/tracker")
-  revalidatePath("/companies")
 }
 
 export async function addFollowUp(jobId: string, formData: FormData) {
@@ -66,7 +91,6 @@ export async function addFollowUp(jobId: string, formData: FormData) {
   })
   await db.update(jobs).set({ lastFollowUp: now, status: "Followed Up", updatedAt: now }).where(eq(jobs.id, jobId))
   revalidatePath("/")
-  revalidatePath("/tracker")
 }
 
 export async function addTemplate(formData: FormData) {
@@ -81,7 +105,6 @@ export async function addTemplate(formData: FormData) {
     createdAt: now,
     updatedAt: now,
   })
-  revalidatePath("/templates")
 }
 
 export async function updateTemplate(id: string, formData: FormData) {
@@ -96,24 +119,19 @@ export async function updateTemplate(id: string, formData: FormData) {
       updatedAt: now,
     })
     .where(eq(templates.id, id))
-  revalidatePath("/templates")
 }
 
 export async function deleteTemplate(id: string) {
   await db.delete(templates).where(eq(templates.id, id))
-  revalidatePath("/templates")
 }
 
 export async function deleteCompany(id: string) {
   await db.delete(companies).where(eq(companies.id, id))
-  revalidatePath("/companies")
   revalidatePath("/")
 }
 
 export async function deleteJob(id: string) {
   await db.delete(jobs).where(eq(jobs.id, id))
-  revalidatePath("/companies")
-  revalidatePath("/tracker")
   revalidatePath("/")
 }
 
@@ -131,5 +149,4 @@ export async function addContact(companyId: string, formData: FormData) {
     createdAt: now,
     updatedAt: now,
   })
-  revalidatePath(`/companies/${companyId}`)
 }

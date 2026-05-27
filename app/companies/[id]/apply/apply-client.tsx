@@ -85,7 +85,7 @@ export function ApplyClient({
               <Badge
                 key={t.id}
                 variant={selectedTemplateId === t.id ? "default" : "outline"}
-                className="cursor-pointer"
+                className="cursor-pointer press-effect"
                 onClick={() => setSelectedTemplateId(t.id)}
               >
                 {t.name}

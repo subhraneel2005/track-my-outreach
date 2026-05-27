@@ -1,117 +1,244 @@
 import { db } from "@/db"
-import { companies, jobs } from "@/db/schema"
-import { desc, eq, sql, and, lt } from "drizzle-orm"
+import { companies, jobs, templates } from "@/db/schema"
+import { desc, eq, asc } from "drizzle-orm"
 import { Card, CardContent } from "@/components/ui/card"
-import Link from "next/link"
-import { Send, MessageCircle, Ghost, TrendingUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { StatusSelect } from "@/components/status-select"
+import { quickAddCompany } from "@/lib/actions"
+import { SOURCES } from "@/lib/constants"
+import { Plus, Send, TrendingUp, MessageCircle, Ghost, ArrowRight } from "lucide-react"
+import Link from "next/link"
+import { TemplateForm } from "@/app/templates/template-form"
+import { DeleteTemplateButton } from "@/components/delete-template-button"
 
-async function getStats() {
-  const allJobs = await db.select().from(jobs)
-  const total = allJobs.length
-  const applied = allJobs.filter((j) => j.status !== "To Apply").length
-  const replied = allJobs.filter((j) => j.status === "Replied" || j.status === "Interview" || j.status === "Offer").length
-  const ghosted = allJobs.filter((j) => j.status === "Ghosted").length
-  return { total, applied, replied, ghosted }
-}
-
-async function getFollowUpRadar() {
-  const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
-  const stalled = await db
-    .select()
+async function getDashboard() {
+  const allJobs = await db
+    .select({
+      id: jobs.id,
+      role: jobs.role,
+      status: jobs.status,
+      location: jobs.location,
+      appliedDate: jobs.appliedDate,
+      updatedAt: jobs.updatedAt,
+      companyId: jobs.companyId,
+      companyName: companies.name,
+    })
     .from(jobs)
-    .where(
-      and(
-        sql`${jobs.status} NOT IN ('Ghosted', 'Rejected', 'Offer')`,
-        sql`${jobs.status} != 'To Apply'`,
-        lt(jobs.updatedAt, fourDaysAgo)
-      )
-    )
+    .leftJoin(companies, eq(jobs.companyId, companies.id))
     .orderBy(desc(jobs.updatedAt))
 
-  if (stalled.length === 0) return []
+  const allTemplates = await db.select().from(templates).orderBy(asc(templates.order))
 
-  const withCompany = await Promise.all(
-    stalled.map(async (j) => {
-      const company = await db
-        .select({ name: companies.name })
-        .from(companies)
-        .where(eq(companies.id, j.companyId))
-        .then((r) => r[0])
-      return { ...j, companyName: company?.name ?? "Unknown" }
-    })
+  const total = allJobs.length
+  const sent = allJobs.filter((j) => j.status !== "To Apply").length
+  const replied = allJobs.filter((j) => ["Replied", "Interview", "Offer"].includes(j.status)).length
+  const ghosted = allJobs.filter((j) => j.status === "Ghosted").length
+
+  const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+  const radar = allJobs.filter(
+    (j) =>
+      !["Ghosted", "Rejected", "Offer", "To Apply"].includes(j.status) &&
+      new Date(j.updatedAt) < fourDaysAgo
   )
-  return withCompany
+
+  return { stats: { total, sent, replied, ghosted }, allJobs, radar, templates: allTemplates }
 }
 
-export default async function Dashboard() {
-  const stats = await getStats()
-  const radar = await getFollowUpRadar()
+const channelLabel: Record<string, string> = {
+  email: "Email",
+  linkedin: "LinkedIn",
+  x: "X",
+}
+
+export default async function Home() {
+  const { stats, allJobs, radar, templates: allTemplates } = await getDashboard()
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Your outreach pipeline</p>
+    <div className="max-w-4xl mx-auto space-y-10">
+      {/* Quick-add — like macOS Spotlight bar */}
+      <div className="flex items-center gap-3 bg-card shadow-sm rounded-xl border border-border px-5 py-3.5">
+        <Plus className="size-4 text-muted-foreground shrink-0" />
+        <form action={quickAddCompany} className="flex-1 flex items-center gap-3">
+          <Input
+            name="name"
+            placeholder="Add a company..."
+            required
+            className="border-0 bg-transparent shadow-none text-sm placeholder:text-muted-foreground/60"
+          />
+          <Input
+            name="role"
+            placeholder="Role"
+            className="border-0 bg-muted/50 px-3 py-1.5 h-8 text-sm rounded-lg shadow-none w-48"
+          />
+          <select
+            name="source"
+            className="h-8 border-0 bg-muted/50 rounded-lg px-3 text-sm text-muted-foreground outline-none w-28"
+          >
+            <option value="">Source</option>
+            {SOURCES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <Button type="submit" size="icon" className="size-8 rounded-full shrink-0">
+            <ArrowRight className="size-3.5" />
+          </Button>
+        </form>
       </div>
 
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-            <Send className="size-4 text-blue-700 dark:text-blue-300" />
+      {/* Stats */}
+      <div className="flex items-center gap-x-8 gap-y-3 flex-wrap">
+        <div className="flex items-center gap-3 fade-in-up stagger-1">
+          <div className="size-10 rounded-2xl bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center">
+            <Send className="size-4.5 text-teal-600 dark:text-teal-400" />
           </div>
           <div>
-            <p className="text-xl font-bold leading-none">{stats.total}</p>
-            <p className="text-xs text-muted-foreground">Total</p>
+            <p className="text-2xl font-bold tracking-tight text-teal-600 dark:text-teal-400">{stats.total}</p>
+            <p className="text-xs text-muted-foreground/70 font-medium tracking-wide uppercase">Total</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-lg bg-green-100 dark:bg-green-900 flex items-center justify-center">
-            <TrendingUp className="size-4 text-green-700 dark:text-green-300" />
+        <div className="flex items-center gap-3 fade-in-up stagger-2">
+          <div className="size-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+            <TrendingUp className="size-4.5 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <p className="text-xl font-bold leading-none">{stats.applied}</p>
-            <p className="text-xs text-muted-foreground">Sent</p>
+            <p className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">{stats.sent}</p>
+            <p className="text-xs text-muted-foreground/70 font-medium tracking-wide uppercase">Sent</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-            <MessageCircle className="size-4 text-purple-700 dark:text-purple-300" />
+        <div className="flex items-center gap-3 fade-in-up stagger-3">
+          <div className="size-10 rounded-2xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center">
+            <MessageCircle className="size-4.5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <p className="text-xl font-bold leading-none">{stats.replied}</p>
-            <p className="text-xs text-muted-foreground">Replied</p>
+            <p className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{stats.replied}</p>
+            <p className="text-xs text-muted-foreground/70 font-medium tracking-wide uppercase">Replied</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-lg bg-red-100 dark:bg-red-900 flex items-center justify-center">
-            <Ghost className="size-4 text-red-700 dark:text-red-300" />
+        <div className="flex items-center gap-3 fade-in-up stagger-4">
+          <div className="size-10 rounded-2xl bg-pink-100 dark:bg-pink-900/40 flex items-center justify-center">
+            <Ghost className="size-4.5 text-pink-600 dark:text-pink-400" />
           </div>
           <div>
-            <p className="text-xl font-bold leading-none">{stats.ghosted}</p>
-            <p className="text-xs text-muted-foreground">Ghosted</p>
+            <p className="text-2xl font-bold tracking-tight text-pink-600 dark:text-pink-400">{stats.ghosted}</p>
+            <p className="text-xs text-muted-foreground/70 font-medium tracking-wide uppercase">Ghosted</p>
           </div>
         </div>
       </div>
 
-      <div>
-        <h2 className="font-semibold mb-3">Needs Follow-up</h2>
-        {radar.length === 0 ? (
+      {/* Pipeline */}
+      <div className="space-y-4">
+        <h2 className="text-base font-semibold tracking-wide text-muted-foreground/80 uppercase">
+          Pipeline &middot; {allJobs.length}
+        </h2>
+        {allJobs.length === 0 ? (
           <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Nothing needs follow-up right now.
+            <CardContent className="py-16 text-center text-sm text-muted-foreground/60">
+              No jobs yet. Add one above.
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-2">
-            {radar.map((j) => (
-              <Card key={j.id}>
-                <CardContent className="flex items-center justify-between py-3">
-                  <Link href={`/companies/${j.companyId}/apply?jobId=${j.id}`} className="flex-1 min-w-0">
-                    <p className="font-medium text-sm hover:underline">{j.companyName}</p>
-                    <p className="text-xs text-muted-foreground">{j.role}</p>
-                  </Link>
-                  <StatusSelect jobId={j.id} current={j.status} />
+          <div className="rounded-xl overflow-hidden shadow-sm">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border/30">
+                  <th className="text-left text-xs font-medium text-muted-foreground/60 px-6 py-3.5 w-[180px]">Company</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground/60 px-6 py-3.5">Role</th>
+                  <th className="text-left text-xs font-medium text-muted-foreground/60 px-6 py-3.5 w-[140px]">Status</th>
+                  <th className="text-right text-xs font-medium text-muted-foreground/60 px-6 py-3.5 w-[150px]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allJobs.map((j) => (
+                  <tr key={j.id} className="border-b border-border/20 last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-4.5">
+                      <span className="text-sm font-medium">{j.companyName ?? "—"}</span>
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <span className="text-sm text-foreground/80">{j.role}</span>
+                    </td>
+                    <td className="px-6 py-4.5">
+                      <StatusSelect jobId={j.id} current={j.status} />
+                    </td>
+                    <td className="px-6 py-4.5 text-right whitespace-nowrap">
+                      <Link
+                        href={`/companies/${j.companyId}/apply?jobId=${j.id}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary/80 hover:text-primary transition-colors"
+                      >
+                        <Send className="size-3.5" />
+                        {j.status === "To Apply" ? "Apply" : "Re-engage"}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Follow-up Radar */}
+      {radar.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold tracking-wide text-muted-foreground/80 uppercase">
+            Needs follow-up &middot; {radar.length}
+          </h2>
+          <div className="space-y-3">
+            {radar.map((j, i) => (
+              <Card key={j.id} className={`card-hover fade-in-up stagger-${Math.min(i + 1, 6)}`}>
+                <CardContent className="flex items-center justify-between py-4">
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-sm font-medium">{j.companyName}</p>
+                    <p className="text-xs text-muted-foreground/70">{j.role}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-4 whitespace-nowrap">
+                    <StatusSelect jobId={j.id} current={j.status} />
+                    <Link
+                      href={`/companies/${j.companyId}/apply?jobId=${j.id}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary/80 hover:text-primary transition-colors"
+                    >
+                      <Send className="size-3.5" />
+                      Re-engage
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Templates */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold tracking-wide text-muted-foreground/80 uppercase">
+            Templates &middot; {allTemplates.length}
+          </h2>
+          <TemplateForm />
+        </div>
+        {allTemplates.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground/60">
+              No templates yet. Add one to use in Quick Apply.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {allTemplates.map((t) => (
+              <Card key={t.id}>
+                <CardContent className="flex items-start justify-between py-4">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{t.name}</span>
+                      <span className="text-xs text-muted-foreground/60 bg-muted/50 rounded px-1.5 py-0.5">
+                        {channelLabel[t.channel] ?? t.channel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground/60 leading-relaxed line-clamp-2">
+                      {t.body.slice(0, 200)}
+                    </p>
+                  </div>
+                  <DeleteTemplateButton id={t.id} />
                 </CardContent>
               </Card>
             ))}
